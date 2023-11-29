@@ -2,7 +2,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Generic badge](https://img.shields.io/badge/Python-3.9.18-Green.svg)](https://shields.io/)
-[![Generic badge](https://img.shields.io/badge/Win_OS-Win_10_(22H2)-Green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Win_OS-Win_11_(22H2),_Win_10_(22H2)-Green.svg)](https://shields.io/)
 [![Generic badge](https://img.shields.io/badge/Mac_OS-Sonoma_14.2_(M1)-Green.svg)](https://shields.io/)
 
 This Python script is designed for benchmarking a convolutional neural network (CNN) model using TensorFlow/Keras on the CIFAR-10 dataset. The script includes functionality for monitoring training time, early stopping, and system resource utilization.
