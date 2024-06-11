@@ -1,3 +1,4 @@
 .DS_Store
 data
 benchmark_report.txt
+venv
