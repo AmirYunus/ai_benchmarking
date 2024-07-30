@@ -1,5 +1,7 @@
-import tensorflow as tf
-from tensorflow.keras import layers, models, callbacks
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -11,11 +13,16 @@ import tarfile
 import pickle
 import platform
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-version = '2311262210'
-minutes = 5
+# Check if CUDA is available and set the device
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
-class TimerCallback(callbacks.Callback):
+# Define the version of the benchmarking script
+version = '2407301136'
+# Define the maximum training time in minutes
+minutes = 1
+
+# Define a custom callback to monitor training time and stop training when a specified time limit is reached
+class TimerCallback:
     """
     A custom callback to monitor training time and stop training when a specified time limit is reached.
 
@@ -23,8 +30,7 @@ class TimerCallback(callbacks.Callback):
     - max_minutes (int): The maximum allowed training time in minutes.
     - start_time (float): The time when training begins.
     """
-    def __init__(self, max_minutes):
-        super().__init__()
+    def __init__(self, max_minutes: int):
         self.max_minutes = max_minutes
         self.start_time = 0
 
@@ -34,24 +40,25 @@ class TimerCallback(callbacks.Callback):
         """
         self.start_time = time.time()
 
-    def on_epoch_end(self, epoch, logs=None):
-        """
-        Checks if the elapsed time exceeds the maximum allowed time after each epoch.
-        If so, stops the training.
+    # def on_epoch_end(self, epoch: int, logs=None):
+    #     """
+    #     Checks if the elapsed time exceeds the maximum allowed time after each epoch.
+    #     If so, stops the training.
 
-        Parameters:
-        - epoch (int): The current epoch.
-        - logs (dict): The training logs.
-        """
-        current_time = time.time()
-        elapsed_time = current_time - self.start_time
+    #     Parameters:
+    #     - epoch (int): The current epoch.
+    #     - logs (dict): The training logs.
+    #     """
+    #     current_time = time.time()
+    #     elapsed_time = current_time - self.start_time
 
-        if elapsed_time > self.max_minutes * 60:
-            self.model.stop_training = True
+    #     if elapsed_time > self.max_minutes * 60:
+    #         self.model.stop_training = True
 
 # Define the local folder to store CIFAR-10 data
 local_folder = './data/'
 
+# Function to download and extract the CIFAR-10 dataset
 def download_and_extract_cifar10():
     """
     Downloads and extracts the CIFAR-10 dataset to the local folder.
@@ -70,6 +77,7 @@ def download_and_extract_cifar10():
     # Remove the downloaded tar file
     os.remove(file_path)
 
+# Function to load and preprocess the CIFAR-10 dataset
 def load_and_preprocess_data():
     """
     Loads the CIFAR-10 dataset from the local folder, normalizes pixel values,
@@ -110,39 +118,41 @@ def load_and_preprocess_data():
     
     return train_images, train_labels, test_images, test_labels, val_images, val_labels
 
+# Function to build and compile a convolutional neural network (CNN) model using PyTorch
 def build_and_compile_model():
     """
-    Builds and compiles a convolutional neural network (CNN) model using TensorFlow/Keras.
+    Builds and compiles a convolutional neural network (CNN) model using PyTorch.
 
     Returns:
-    - A Keras model object
+    - A PyTorch model object
     """
-    model = models.Sequential()
-
-    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
-    model.add(layers.MaxPooling2D((2, 2)))
-
-    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-    model.add(layers.MaxPooling2D((2, 2)))
-
-    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-
-    model.add(layers.Flatten())
-
-    model.add(layers.Dense(1_028, activation='relu'))
-    model.add(layers.Dense(10))
-
-    model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate = 1e-4),
-                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                  metrics=['accuracy'])
+    model = nn.Sequential(
+        nn.Conv2d(3, 32, 3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2, 2),
+        nn.Conv2d(32, 64, 3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2, 2),
+        nn.Conv2d(64, 64, 3, padding=1),
+        nn.ReLU(),
+        nn.Flatten(),
+        nn.Linear(64 * 8 * 8, 1028),
+        nn.ReLU(),
+        nn.Linear(1028, 10)
+    )
+    
+    # Move the model to the device
+    model = model.to(device)
+    
     return model
 
+# Function to train the model with EarlyStopping and TimerCallback
 def train_model(model, train_images, train_labels, val_images, val_labels, timer_callback):
     """
     Trains the provided model with EarlyStopping and TimerCallback.
 
     Parameters:
-    - model: A Keras model object.
+    - model: A PyTorch model object.
     - train_images, train_labels: Numpy arrays containing training data.
     - val_images, val_labels: Numpy arrays containing validation data.
     - timer_callback: An instance of TimerCallback for monitoring training time.
@@ -150,22 +160,47 @@ def train_model(model, train_images, train_labels, val_images, val_labels, timer
     Returns:
     - The training history object.
     """
-    history = model.fit(
-        train_images,
-        train_labels,
-        epochs = (minutes * 10),
-        validation_data=(val_images, val_labels),
-        callbacks=[callbacks.EarlyStopping(monitor='val_accuracy', patience=3, restore_best_weights=True), timer_callback],
-        verbose=0
-    )
+    train_dataset = TensorDataset(torch.from_numpy(train_images).float(), torch.from_numpy(train_labels))
+    val_dataset = TensorDataset(torch.from_numpy(val_images).float(), torch.from_numpy(val_labels))
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+
+    history = []
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    for epoch in range(minutes * 10):
+        for batch in train_loader:
+            inputs, labels = batch
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs.permute(0, 3, 1, 2))
+            loss = nn.CrossEntropyLoss()(outputs, labels.long())
+            loss.backward()
+            optimizer.step()
+            history.append({'loss': loss.item()})
+        if val_loader:
+            model.eval()
+            total_correct = 0
+            with torch.no_grad():
+                for batch in val_loader:
+                    inputs, labels = batch
+                    inputs, labels = inputs.to(device), labels.to(device)
+                    outputs = model(inputs.permute(0, 3, 1, 2))
+                    _, predicted = torch.max(outputs, 1)
+                    total_correct += (predicted == labels).sum().item()
+            accuracy = total_correct / len(val_loader.dataset)
+            history[-1]['val_accuracy'] = accuracy
+            # if timer_callback.on_epoch_end(epoch, history):
+            #     break
     return history
 
+# Function to evaluate the model on the test set and calculate F1 score
 def evaluate_model(model, test_images, test_labels, minutes, training_time):
     """
     Evaluates the model on the test set and calculates F1 score.
 
     Parameters:
-    - model: A trained Keras model.
+    - model: A trained PyTorch model.
     - test_images, test_labels: Numpy arrays containing test data.
     - minutes: Minutes registered for TimerCallback
     - history: Training history
@@ -173,12 +208,13 @@ def evaluate_model(model, test_images, test_labels, minutes, training_time):
     Returns:
     - Tuple: (F1 score, benchmark score)
     """
-    test_predictions = np.argmax(model.predict(test_images, verbose=0), axis=1)
+    test_predictions = np.argmax(model(torch.from_numpy(test_images).permute(0, 3, 1, 2).float().to(device)).cpu().detach().numpy(), axis=1)
     f1 = f1_score(test_labels, test_predictions, average='weighted')
     # benchmark = round(((minutes * 60) / training_time) * ((minutes * 10) - len(history.history['accuracy'])) * 100)
     benchmark = round((((minutes * 60) / training_time) * 1_000) / 3)
     return f1, benchmark
 
+# Function to retrieve information about the system's CPU, memory, and disk
 def get_system_information():
     """
     Retrieves information about the system's CPU, memory, and disk.
@@ -204,6 +240,7 @@ def get_system_information():
 
     return cpu_info, memory_info, disk_info
 
+# Function to save benchmark information to a text file
 def save_benchmark_report(filename, cpu_info, memory_info, disk_info, f1, training_time, benchmark):
     """
     Saves benchmark information to a text file.
@@ -234,6 +271,7 @@ def save_benchmark_report(filename, cpu_info, memory_info, disk_info, f1, traini
         file.write(f'Training Time (s): {int(round(training_time, 0))}\n')
         file.write(f'Benchmark Score: {int(benchmark)}')
 
+# Function to print system information and benchmark results to the console
 def print_system_information(cpu_info, memory_info, disk_info, f1, training_time, benchmark):
     """
     Prints system information and benchmark results to the console.
@@ -261,6 +299,7 @@ def print_system_information(cpu_info, memory_info, disk_info, f1, training_time
     print(f'Training Time (s): {int(round(training_time, 0))}')
     print(f'Benchmark Score: {int(benchmark)}\n')
 
+# Main function that orchestrates the entire benchmarking process
 def main():
     """
     The main function that orchestrates the entire benchmarking process.
@@ -276,7 +315,10 @@ def main():
 
     # Print version information
     print(f'\nAI Benchmarking | Version: {version}')
-    print(f'This test will take up to {minutes + 5} minutes\n')
+    if device.type == 'cuda' or device.type == 'mps':
+        print(f'This test will take up to {minutes + 1} minutes on {device.type.upper()}\n')
+    else:
+        print(f'This test will take up to {minutes * 2} minutes on {device.type.upper()}\n')
 
     start_time = time.time()
 
@@ -307,5 +349,5 @@ def main():
     print(f"Benchmark report saved to {filename}")
 
 if __name__ == "__main__":
-    tf.random.set_seed(786)
+    torch.manual_seed(786)
     main()
