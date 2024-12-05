@@ -1,353 +1,380 @@
+import psutil
+import platform
+import numpy as np
+import pandas as pd
+import time
+from datetime import datetime
+import cpuinfo
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
 from sklearn.metrics import f1_score
-from sklearn.model_selection import train_test_split
-import numpy as np
-import time
-import psutil
-import os
-import urllib
-import tarfile
-import pickle
-import platform
+from tqdm import tqdm
+import warnings
+import random
+warnings.filterwarnings('ignore')
 
-# Check if CUDA is available and set the device
-device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+def set_seed(seed=42):
+    """Set seed for reproducibility"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-# Define the version of the benchmarking script
-version = '2407301136'
-# Define the maximum training time in minutes
-minutes = 1
-
-# Define a custom callback to monitor training time and stop training when a specified time limit is reached
-class TimerCallback:
-    """
-    A custom callback to monitor training time and stop training when a specified time limit is reached.
-
-    Attributes:
-    - max_minutes (int): The maximum allowed training time in minutes.
-    - start_time (float): The time when training begins.
-    """
-    def __init__(self, max_minutes: int):
-        self.max_minutes = max_minutes
-        self.start_time = 0
-
-    def on_train_begin(self, logs=None):
-        """
-        Initializes the start time when training begins.
-        """
-        self.start_time = time.time()
-
-    # def on_epoch_end(self, epoch: int, logs=None):
-    #     """
-    #     Checks if the elapsed time exceeds the maximum allowed time after each epoch.
-    #     If so, stops the training.
-
-    #     Parameters:
-    #     - epoch (int): The current epoch.
-    #     - logs (dict): The training logs.
-    #     """
-    #     current_time = time.time()
-    #     elapsed_time = current_time - self.start_time
-
-    #     if elapsed_time > self.max_minutes * 60:
-    #         self.model.stop_training = True
-
-# Define the local folder to store CIFAR-10 data
-local_folder = './data/'
-
-# Function to download and extract the CIFAR-10 dataset
-def download_and_extract_cifar10():
-    """
-    Downloads and extracts the CIFAR-10 dataset to the local folder.
-    """
-    os.makedirs(local_folder, exist_ok=True)
-    url = 'https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
-    file_path = os.path.join(local_folder, 'cifar-10-python.tar.gz')
+def _create_vgg16():
+    """Create VGG16 architecture from scratch"""
+    cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
     
-    # Download the CIFAR-10 dataset
-    urllib.request.urlretrieve(url, file_path)
-    
-    # Extract the contents of the tar file
-    with tarfile.open(file_path, 'r:gz') as tar:
-        tar.extractall(local_folder)
-    
-    # Remove the downloaded tar file
-    os.remove(file_path)
-
-# Function to load and preprocess the CIFAR-10 dataset
-def load_and_preprocess_data():
-    """
-    Loads the CIFAR-10 dataset from the local folder, normalizes pixel values,
-    and splits the data into training and validation sets.
-
-    Returns:
-    - Tuple of numpy arrays: (train_images, train_labels, test_images, test_labels, val_images, val_labels)
-    """
-    # Check if CIFAR-10 data is already downloaded
-    if not os.path.exists(os.path.join(local_folder, 'cifar-10-batches-py')):
-        download_and_extract_cifar10()
-    
-    train_images, train_labels = [], []
-    for i in range(1, 6):
-        file_path = os.path.join(local_folder, f'cifar-10-batches-py/data_batch_{i}')
-        with open(file_path, 'rb') as file:
-            batch_data = pickle.load(file, encoding='bytes')
-            train_images.append(batch_data[b'data'])
-            train_labels.extend(batch_data[b'labels'])
-    
-    train_images = np.concatenate(train_images, axis=0).reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
-    train_labels = np.array(train_labels)
-    
-    # Load test data
-    file_path = os.path.join(local_folder, 'cifar-10-batches-py/test_batch')
-    with open(file_path, 'rb') as file:
-        test_data = pickle.load(file, encoding='bytes')
-        test_images = test_data[b'data'].reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
-        test_labels = np.array(test_data[b'labels'])
-    
-    # Normalize pixel values
-    train_images, test_images = train_images / 255.0, test_images / 255.0
-    
-    # Split into training and validation sets
-    train_images, val_images, train_labels, val_labels = train_test_split(
-        train_images, train_labels, test_size=0.2, random_state=42
-    )
-    
-    return train_images, train_labels, test_images, test_labels, val_images, val_labels
-
-# Function to build and compile a convolutional neural network (CNN) model using PyTorch
-def build_and_compile_model():
-    """
-    Builds and compiles a convolutional neural network (CNN) model using PyTorch.
-
-    Returns:
-    - A PyTorch model object
-    """
-    model = nn.Sequential(
-        nn.Conv2d(3, 32, 3, padding=1),
-        nn.ReLU(),
-        nn.MaxPool2d(2, 2),
-        nn.Conv2d(32, 64, 3, padding=1),
-        nn.ReLU(),
-        nn.MaxPool2d(2, 2),
-        nn.Conv2d(64, 64, 3, padding=1),
-        nn.ReLU(),
+    layers = []
+    in_channels = 3
+    for x in cfg:
+        if x == 'M':
+            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+        else:
+            layers += [
+                nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                nn.BatchNorm2d(x),
+                nn.ReLU(inplace=True)
+            ]
+            in_channels = x
+            
+    return nn.Sequential(
+        *layers,
+        nn.AdaptiveAvgPool2d((7, 7)),
         nn.Flatten(),
-        nn.Linear(64 * 8 * 8, 1028),
-        nn.ReLU(),
-        nn.Linear(1028, 10)
+        nn.Linear(512 * 7 * 7, 4096),
+        nn.ReLU(True),
+        nn.Dropout(),
+        nn.Linear(4096, 4096),
+        nn.ReLU(True),
+        nn.Dropout(),
+        nn.Linear(4096, 10)
     )
+
+class VGG16(nn.Module):
+    def __init__(self):
+        super(VGG16, self).__init__()
+        self.features = _create_vgg16()
+        
+        # Initialize weights
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        return self.features(x)
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+class PCBenchmark:
+    def __init__(self):
+        self.results_file = "benchmark_results.csv"
+        self.system_info = self._get_system_info()
+        self.available_devices = self._detect_devices()
+        self.num_epochs = 5
+        self.batch_size = 128
+        set_seed()
+        
+    def _detect_devices(self):
+        """Detect available computing devices"""
+        devices = {'cpu': True}
+        
+        # Check for CUDA
+        devices['cuda'] = torch.cuda.is_available()
+        if devices['cuda']:
+            devices['cuda_device'] = torch.cuda.get_device_name(0)
+            devices['cuda_count'] = torch.cuda.device_count()
+        
+        # Check for MPS (Apple Silicon)
+        devices['mps'] = torch.backends.mps.is_available()
+        
+        return devices
+        
+    def _get_apple_silicon_info(self):
+        """Get detailed information about Apple Silicon chip"""
+        try:
+            import subprocess
+            
+            # Run system_profiler command to get detailed hardware info
+            cmd = ['system_profiler', 'SPHardwareDataType']
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            output = result.stdout
+            
+            # Look for the chip information
+            for line in output.split('\n'):
+                if 'Chip' in line:
+                    # Extract chip info (e.g., "Apple M1 Pro" or "Apple M2 Max")
+                    chip_info = line.split(':')[1].strip()
+                    # Remove "Apple " prefix if present
+                    chip_info = chip_info.replace('Apple ', '')
+                    return chip_info
+            
+            return "Apple Silicon (Unknown Model)"
+        except Exception as e:
+            return "Apple Silicon (Detection Failed)"
+        
+    def _get_system_info(self):
+        """Gather system specifications"""
+        cpu_info = cpuinfo.get_cpu_info()
+        system_info = {
+            'cpu_model': cpu_info['brand_raw'],
+            'cpu_cores': psutil.cpu_count(logical=False),
+            'cpu_threads': psutil.cpu_count(logical=True),
+            'ram_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+            'os': f"{platform.system()} {platform.release()}",
+            'python_version': platform.python_version()
+        }
+        
+        # Add GPU information if available
+        if torch.cuda.is_available():
+            system_info['gpu_model'] = torch.cuda.get_device_name(0)
+        elif torch.backends.mps.is_available():
+            system_info['gpu_model'] = self._get_apple_silicon_info()
+        else:
+            system_info['gpu_model'] = "None"
+            
+        return system_info
     
-    # Move the model to the device
-    model = model.to(device)
+    def _prepare_data(self):
+        """Prepare CIFAR-10 dataset"""
+        g = torch.Generator()
+        g.manual_seed(42)
+        
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        
+        # Download and load training data
+        trainset = torchvision.datasets.CIFAR10(
+            root='./data', train=True, download=True, transform=transform
+        )
+        trainloader = DataLoader(
+            trainset, batch_size=self.batch_size, shuffle=True, 
+            num_workers=2, worker_init_fn=seed_worker, generator=g
+        )
+        
+        # Download and load test data
+        testset = torchvision.datasets.CIFAR10(
+            root='./data', train=False, download=True, transform=transform
+        )
+        testloader = DataLoader(
+            testset, batch_size=self.batch_size, shuffle=False, 
+            num_workers=2, worker_init_fn=seed_worker, generator=g
+        )
+        
+        return trainloader, testloader
     
-    return model
-
-# Function to train the model with EarlyStopping and TimerCallback
-def train_model(model, train_images, train_labels, val_images, val_labels, timer_callback):
-    """
-    Trains the provided model with EarlyStopping and TimerCallback.
-
-    Parameters:
-    - model: A PyTorch model object.
-    - train_images, train_labels: Numpy arrays containing training data.
-    - val_images, val_labels: Numpy arrays containing validation data.
-    - timer_callback: An instance of TimerCallback for monitoring training time.
-
-    Returns:
-    - The training history object.
-    """
-    train_dataset = TensorDataset(torch.from_numpy(train_images).float(), torch.from_numpy(train_labels))
-    val_dataset = TensorDataset(torch.from_numpy(val_images).float(), torch.from_numpy(val_labels))
-
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-
-    history = []
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    for epoch in range(minutes * 10):
-        for batch in train_loader:
-            inputs, labels = batch
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs.permute(0, 3, 1, 2))
-            loss = nn.CrossEntropyLoss()(outputs, labels.long())
-            loss.backward()
-            optimizer.step()
-            history.append({'loss': loss.item()})
-        if val_loader:
+    def run_benchmark(self, device):
+        """Run the complete benchmark including training and testing"""
+        total_start_time = time.time()  # Start timing total process
+        
+        print("\nPreparing dataset...")
+        trainloader, testloader = self._prepare_data()
+        
+        print("Initialising benchmark model...")
+        model = VGG16().to(device)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.num_epochs)
+        
+        print(f"\nStarting benchmark training...")
+        epoch_start_time = time.time()
+        
+        for epoch in range(self.num_epochs):
+            model.train()
+            running_loss = 0.0
+            
+            # Create progress bar for training
+            pbar = tqdm(trainloader, desc=f'Epoch {epoch+1}/{self.num_epochs}',
+                       unit='batch', leave=True)
+            
+            for inputs, labels in pbar:
+                inputs, labels = inputs.to(device), labels.to(device)
+                
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                
+                running_loss += loss.item()
+                
+                # Update progress bar description with current loss
+                pbar.set_postfix({
+                    'loss': f'{running_loss/len(pbar):.4f}',
+                    'epoch_time': f'{time.time() - epoch_start_time:.1f}s'
+                })
+            
+            scheduler.step()
+            pbar.close()
+            epoch_start_time = time.time()  # Reset for next epoch
+        
+            # Perform validation within each epoch after training
             model.eval()
-            total_correct = 0
+            all_preds = []
+            all_labels = []
+        
             with torch.no_grad():
-                for batch in val_loader:
-                    inputs, labels = batch
+                for inputs, labels in testloader:
                     inputs, labels = inputs.to(device), labels.to(device)
-                    outputs = model(inputs.permute(0, 3, 1, 2))
-                    _, predicted = torch.max(outputs, 1)
-                    total_correct += (predicted == labels).sum().item()
-            accuracy = total_correct / len(val_loader.dataset)
-            history[-1]['val_accuracy'] = accuracy
-            # if timer_callback.on_epoch_end(epoch, history):
-            #     break
-    return history
+                    outputs = model(inputs)
+                    _, predicted = torch.max(outputs.data, 1)
+                    all_preds.extend(predicted.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+        
+            f1 = f1_score(all_labels, all_preds, average='weighted')
+        
+        training_time = time.time() - total_start_time
+        
+        # Calculate F1 score on test set
+        print("\nEvaluating benchmark training...")
+        model.eval()
+        all_preds = []
+        all_labels = []
+        
+        with torch.no_grad():
+            for inputs, labels in testloader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+        
+        f1 = f1_score(all_labels, all_preds, average='weighted')
+        
+        total_time = time.time() - total_start_time
+        
+        return {
+            'training_time': round(training_time, 2),
+            'total_time': round(total_time, 2),
+            'f1_score': round(f1, 4)
+        }
+    
+    def run_full_benchmark(self):
+        """Run complete benchmark and return results"""
+        # Select best available device
+        device = (torch.device('cuda') if torch.cuda.is_available() else 
+                 torch.device('mps') if torch.backends.mps.is_available() else 
+                 torch.device('cpu'))
+        
+        print(f"Running benchmark on {device}...")
+        benchmark_results = self.run_benchmark(device)
+        
+        results = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d'),
+            'os': f"{platform.system()} {platform.release()}",
+            'cpu_model': self.system_info['cpu_model'],
+            'cpu_cores': f"{self.system_info['cpu_cores']} ({self.system_info['cpu_threads']} threads)",
+            'ram': self._get_memory_info(),
+            'gpu_model': self.system_info['gpu_model'],
+            'pytorch_version': torch.__version__,
+            'training_time': benchmark_results['training_time'],
+            'total_time': benchmark_results['total_time'],
+            'f1_score': benchmark_results['f1_score']
+        }
+        
+        # Add CUDA information if available
+        cuda_info = self._get_cuda_info()
+        results.update({
+            'cuda_version': cuda_info['cuda_version'],
+            'cuda_cores': cuda_info['cuda_cores'],
+            'vram': (cuda_info['vram_gb'] if cuda_info['vram_gb'] != 'N.A.' 
+                    else self._get_memory_info() if 'Apple' in str(results['gpu_model'])
+                    else 'N.A.')
+        })
+        
+        return results
+    
+    def save_results(self, results):
+        """Save benchmark results to CSV file"""
+        df = pd.DataFrame([results])
+        
+        if os.path.exists(self.results_file):
+            existing_df = pd.read_csv(self.results_file)
+            df = pd.concat([existing_df, df], ignore_index=True)
+        
+        # Sort by F1 score (higher is better) and total time (lower is better)
+        df = df.sort_values(['f1_score', 'total_time'], ascending=[False, True])
+        
+        # Reorder columns for better readability
+        columns = [
+            'timestamp', 'os', 'cpu_model', 'cpu_cores', 'ram',
+            'gpu_model', 'cuda_version', 'cuda_cores', 'vram',
+            'pytorch_version', 'total_time', 'f1_score'
+        ]
+        df = df[columns]
+        
+        df.to_csv(self.results_file, index=False)
+        return df
+    
+    def _get_memory_info(self):
+        """Get total RAM information"""
+        return f"{round(psutil.virtual_memory().total / (1024**3), 2)} GB"
+    
+    def _get_cuda_info(self):
+        """Get CUDA information if available"""
+        if not torch.cuda.is_available():
+            return {
+                'cuda_version': 'N.A.',
+                'cuda_cores': 'N.A.',
+                'vram_gb': 'N.A.'
+            }
+        
+        # Assuming you have a way to get CUDA version and cores
+        cuda_version = torch.version.cuda
+        cuda_cores = torch.cuda.get_device_capability(0)[0]  # Example for getting CUDA cores
+        vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
+        
+        return {
+            'cuda_version': cuda_version,
+            'cuda_cores': cuda_cores,
+            'vram_gb': vram_gb
+        }
 
-# Function to evaluate the model on the test set and calculate F1 score
-def evaluate_model(model, test_images, test_labels, minutes, training_time):
-    """
-    Evaluates the model on the test set and calculates F1 score.
-
-    Parameters:
-    - model: A trained PyTorch model.
-    - test_images, test_labels: Numpy arrays containing test data.
-    - minutes: Minutes registered for TimerCallback
-    - history: Training history
-
-    Returns:
-    - Tuple: (F1 score, benchmark score)
-    """
-    test_predictions = np.argmax(model(torch.from_numpy(test_images).permute(0, 3, 1, 2).float().to(device)).cpu().detach().numpy(), axis=1)
-    f1 = f1_score(test_labels, test_predictions, average='weighted')
-    # benchmark = round(((minutes * 60) / training_time) * ((minutes * 10) - len(history.history['accuracy'])) * 100)
-    benchmark = round((((minutes * 60) / training_time) * 1_000) / 3)
-    return f1, benchmark
-
-# Function to retrieve information about the system's CPU, memory, and disk
-def get_system_information():
-    """
-    Retrieves information about the system's CPU, memory, and disk.
-
-    Returns:
-    - Tuple of dictionaries: (cpu_info, memory_info, disk_info)
-    """
-    cpu_info = {
-        'Platform': platform.platform(),
-        'CPU Usage (%)': round(min(max([x / psutil.cpu_count() * 100 for x in psutil.getloadavg()]), 100), 1),
-        'CPU Cores': psutil.cpu_count(logical=False),
-    }
-
-    memory_info = {
-        'Total Memory (GB)': round(psutil.virtual_memory().total / (1024**3), 2),
-        'Memory Usage (%)': psutil.virtual_memory().percent
-    }
-
-    disk_info = {
-        'Total Disk Space (GB)': round(psutil.disk_usage('/').total / (1024**3), 2),
-        'Disk Usage (%)': psutil.disk_usage('/').percent
-    }
-
-    return cpu_info, memory_info, disk_info
-
-# Function to save benchmark information to a text file
-def save_benchmark_report(filename, cpu_info, memory_info, disk_info, f1, training_time, benchmark):
-    """
-    Saves benchmark information to a text file.
-
-    Parameters:
-    - filename (str): The name of the file to save the benchmark report.
-    - cpu_info, memory_info, disk_info: Dictionaries containing system information.
-    - f1 (float): F1 score.
-    - training_time (float): Time taken for training.
-    - benchmark (int): Benchmark score.
-    """
-    with open(filename, 'w') as file:
-        file.write(f"===== AI Benchmarking | Version: {version} =====\n")
-        file.write("===== CPU Information =====\n")
-        for key, value in cpu_info.items():
-            file.write(f"{key}: {value}\n")
-
-        file.write("\n===== Memory Information =====\n")
-        for key, value in memory_info.items():
-            file.write(f"{key}: {value}\n")
-
-        file.write("\n===== Disk Information =====\n")
-        for key, value in disk_info.items():
-            file.write(f"{key}: {value}\n")
-
-        file.write("\n===== Benchmark Results =====\n")
-        file.write(f'F1 Score (%): {round(f1 * 100, 2)}\n')
-        file.write(f'Training Time (s): {int(round(training_time, 0))}\n')
-        file.write(f'Benchmark Score: {int(benchmark)}')
-
-# Function to print system information and benchmark results to the console
-def print_system_information(cpu_info, memory_info, disk_info, f1, training_time, benchmark):
-    """
-    Prints system information and benchmark results to the console.
-
-    Parameters:
-    - cpu_info, memory_info, disk_info: Dictionaries containing system information.
-    - f1 (float): F1 score.
-    - training_time (float): Time taken for training.
-    - benchmark (int): Benchmark score.
-    """
-    print("===== CPU Information =====")
-    for key, value in cpu_info.items():
-        print(f"{key}: {value}")
-
-    print("\n===== Memory Information =====")
-    for key, value in memory_info.items():
-        print(f"{key}: {value}")
-
-    print("\n===== Disk Information =====")
-    for key, value in disk_info.items():
-        print(f"{key}: {value}")
-
-    print("\n===== Benchmark Results =====")
-    print(f'F1 Score (%): {round(f1 * 100, 2)}')
-    print(f'Training Time (s): {int(round(training_time, 0))}')
-    print(f'Benchmark Score: {int(benchmark)}\n')
-
-# Main function that orchestrates the entire benchmarking process
 def main():
-    """
-    The main function that orchestrates the entire benchmarking process.
-    """
-    # Load and preprocess data
-    train_images, train_labels, test_images, test_labels, val_images, val_labels = load_and_preprocess_data()
-
-    # Build and compile the model
-    model = build_and_compile_model()
-
-    # Define TimerCallback with a maximum time of 5 minutes
-    timer_callback = TimerCallback(max_minutes=minutes)
-
-    # Print version information
-    print(f'\nAI Benchmarking | Version: {version}')
-    if device.type == 'cuda' or device.type == 'mps':
-        print(f'This test will take up to {minutes + 1} minutes on {device.type.upper()}\n')
-    else:
-        print(f'This test will take up to {minutes * 2} minutes on {device.type.upper()}\n')
-
-    start_time = time.time()
-
-    # Train the model with EarlyStopping and TimerCallback
-    train_model(model, train_images, train_labels, val_images, val_labels, timer_callback)
-
-    end_time = time.time()
-
-    # Calculate training time
-    training_time = end_time - start_time
-
-    # Evaluate the model on the test set
-    f1, benchmark = evaluate_model(model, test_images, test_labels, minutes, training_time)
-
-    # Get system information
-    cpu_info, memory_info, disk_info = get_system_information()
-
-    # Define the filename for the benchmark report
-    filename = './benchmark_report.txt'
-
-    # Save benchmark information to the file
-    save_benchmark_report(filename, cpu_info, memory_info, disk_info, f1, training_time, benchmark)
-
-    # Print benchmark information to the console
-    print_system_information(cpu_info, memory_info, disk_info, f1, training_time, benchmark)
-
-    # Print the location where the benchmark report is saved
-    print(f"Benchmark report saved to {filename}")
+    benchmark = PCBenchmark()
+    print("Starting PC Benchmark...")
+    
+    print("\nAvailable Devices:")
+    for device, available in benchmark.available_devices.items():
+        if isinstance(available, bool):
+            print(f"{device}: {'Available' if available else 'Not Available'}")
+        else:
+            print(f"{device}: {available}")
+    
+    print("\nSystem Information:")
+    for key, value in benchmark.system_info.items():
+        print(f"{key}: {value}")
+    
+    results = benchmark.run_full_benchmark()
+    
+    print("\nBenchmark Results:")
+    print(f"Total Time: {results['total_time']} seconds")
+    print(f"F1 Score: {results['f1_score']}")
+    
+    print("\nSaving results and updating leaderboard...")
+    leaderboard = benchmark.save_results(results)
+    
+    print("\nLeaderboard (Top 5):")
+    print(leaderboard.head())
 
 if __name__ == "__main__":
-    torch.manual_seed(786)
     main()
