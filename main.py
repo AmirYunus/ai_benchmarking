@@ -16,6 +16,7 @@ from sklearn.metrics import f1_score
 from tqdm import tqdm
 import warnings
 import random
+import hashlib
 warnings.filterwarnings('ignore')
 
 def set_seed(seed=42):
@@ -182,6 +183,18 @@ class PCBenchmark:
         
         return trainloader, testloader
     
+    def _get_temperature(self):
+        """Get the current CPU temperature"""
+        try:
+            temps = psutil.sensors_temperatures()
+            if 'coretemp' in temps:
+                return [temp.current for temp in temps['coretemp']]
+            elif 'cpu_thermal' in temps:
+                return [temp.current for temp in temps['cpu_thermal']]
+            return []
+        except Exception as e:
+            return []
+
     def run_benchmark(self, device):
         """Run the complete benchmark including training and testing"""
         total_start_time = time.time()  # Start timing total process
@@ -194,7 +207,10 @@ class PCBenchmark:
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.num_epochs)
-        
+
+        # Initialize temperature tracking
+        temperatures = []
+
         print(f"\nStarting benchmark training...")
         epoch_start_time = time.time()
         
@@ -216,7 +232,12 @@ class PCBenchmark:
                 optimizer.step()
                 
                 running_loss += loss.item()
-                
+
+                # Measure temperature
+                current_temps = self._get_temperature()
+                if current_temps:
+                    temperatures.extend(current_temps)
+
                 # Update progress bar description with current loss
                 pbar.set_postfix({
                     'loss': f'{running_loss/len(pbar):.4f}',
@@ -227,20 +248,31 @@ class PCBenchmark:
             pbar.close()
             epoch_start_time = time.time()  # Reset for next epoch
         
-            # Perform validation within each epoch after training
-            model.eval()
-            all_preds = []
-            all_labels = []
+        # Calculate temperature statistics
+        if temperatures:
+            lowest_temp = min(temperatures)
+            highest_temp = max(temperatures)
+            average_temp = sum(temperatures) / len(temperatures)
+        else:
+            lowest_temp = highest_temp = average_temp = None
+
+        # Log temperature statistics
+        print(f"Temperature during training - Lowest: {lowest_temp}, Highest: {highest_temp}, Average: {average_temp}")
+
+        # Perform validation within each epoch after training
+        model.eval()
+        all_preds = []
+        all_labels = []
         
-            with torch.no_grad():
-                for inputs, labels in testloader:
-                    inputs, labels = inputs.to(device), labels.to(device)
-                    outputs = model(inputs)
-                    _, predicted = torch.max(outputs.data, 1)
-                    all_preds.extend(predicted.cpu().numpy())
-                    all_labels.extend(labels.cpu().numpy())
+        with torch.no_grad():
+            for inputs, labels in testloader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         
-            f1 = f1_score(all_labels, all_preds, average='weighted')
+        f1 = f1_score(all_labels, all_preds, average='weighted')
         
         training_time = time.time() - total_start_time
         
@@ -265,7 +297,8 @@ class PCBenchmark:
         return {
             'training_time': round(training_time, 2),
             'total_time': round(total_time, 2),
-            'f1_score': round(f1, 4)
+            'f1_score': round(f1, 4),
+            'average_temperature': average_temp
         }
     
     def run_full_benchmark(self):
@@ -288,7 +321,8 @@ class PCBenchmark:
             'pytorch_version': torch.__version__,
             'training_time': benchmark_results['training_time'],
             'total_time': benchmark_results['total_time'],
-            'f1_score': benchmark_results['f1_score']
+            'f1_score': benchmark_results['f1_score'],
+            'average_temperature': benchmark_results['average_temperature']
         }
         
         # Add CUDA information if available
@@ -303,20 +337,37 @@ class PCBenchmark:
         
         return results
     
+    def _generate_unique_id(self, results):
+        """Generate a unique identifier based on system specifications"""
+        unique_string = f"{results['os']}_{results['cpu_model']}_{results['cpu_cores']}_{results['ram']}_{results['gpu_model']}_{results['cuda_version']}_{results['cuda_cores']}_{results['vram']}_{results['pytorch_version']}"
+        return hashlib.sha256(unique_string.encode()).hexdigest()  # Generate a SHA-256 hash
+
     def save_results(self, results):
         """Save benchmark results to CSV file"""
+        results['unique_id'] = self._generate_unique_id(results)  # Generate unique ID
+        
         df = pd.DataFrame([results])
         
         if os.path.exists(self.results_file):
             existing_df = pd.read_csv(self.results_file)
-            df = pd.concat([existing_df, df], ignore_index=True)
+            # Check for existing record with the same unique ID
+            if results['unique_id'] in existing_df['unique_id'].values:
+                existing_record = existing_df[existing_df['unique_id'] == results['unique_id']].iloc[0]
+                # Compare F1 scores and keep the better result
+                if results['f1_score'] > existing_record['f1_score']:
+                    existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]  # Remove the old record
+                    df = pd.concat([existing_df, df], ignore_index=True)  # Add the new record
+                else:
+                    return existing_df  # Return existing record if it's better
+            else:
+                df = pd.concat([existing_df, df], ignore_index=True)
         
         # Sort by F1 score (higher is better) and total time (lower is better)
         df = df.sort_values(['f1_score', 'total_time'], ascending=[False, True])
         
         # Reorder columns for better readability
         columns = [
-            'timestamp', 'os', 'cpu_model', 'cpu_cores', 'ram',
+            'unique_id', 'os', 'cpu_model', 'cpu_cores', 'ram',
             'gpu_model', 'cuda_version', 'cuda_cores', 'vram',
             'pytorch_version', 'total_time', 'f1_score'
         ]
@@ -374,7 +425,7 @@ def main():
     leaderboard = benchmark.save_results(results)
     
     print("\nLeaderboard (Top 5):")
-    print(leaderboard.head())
+    print(leaderboard.drop('unique_id', axis=1).head())
 
 if __name__ == "__main__":
     main()
