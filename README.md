@@ -35,15 +35,11 @@ Interestingly, the M3 Pro achieved a higher F1 score, which is unexpected given 
 ```bash
 conda create --prefix=venv python=3.11 -y
 conda activate ./venv
-```
-
-Ensure you have the required dependencies by running:
-
-```bash
 python -m pip install -r requirements.txt
 ```
 
-For Windows with CUDA support:
+### Additional Requirements
+For Windows:
 ```bash
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
