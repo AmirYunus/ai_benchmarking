@@ -17,6 +17,9 @@ from tqdm import tqdm
 import warnings
 import random
 import hashlib
+import subprocess
+import re
+
 warnings.filterwarnings('ignore')
 
 def set_seed(seed=42):
@@ -182,18 +185,6 @@ class PCBenchmark:
         )
         
         return trainloader, testloader
-    
-    def _get_temperature(self):
-        """Get the current CPU temperature"""
-        try:
-            temps = psutil.sensors_temperatures()
-            if 'coretemp' in temps:
-                return [temp.current for temp in temps['coretemp']]
-            elif 'cpu_thermal' in temps:
-                return [temp.current for temp in temps['cpu_thermal']]
-            return []
-        except Exception as e:
-            return []
 
     def run_benchmark(self, device):
         """Run the complete benchmark including training and testing"""
@@ -207,9 +198,6 @@ class PCBenchmark:
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.num_epochs)
-
-        # Initialize temperature tracking
-        temperatures = []
 
         print(f"\nStarting benchmark training...")
         epoch_start_time = time.time()
@@ -233,11 +221,6 @@ class PCBenchmark:
                 
                 running_loss += loss.item()
 
-                # Measure temperature
-                current_temps = self._get_temperature()
-                if current_temps:
-                    temperatures.extend(current_temps)
-
                 # Update progress bar description with current loss
                 pbar.set_postfix({
                     'loss': f'{running_loss/len(pbar):.4f}',
@@ -247,17 +230,6 @@ class PCBenchmark:
             scheduler.step()
             pbar.close()
             epoch_start_time = time.time()  # Reset for next epoch
-        
-        # Calculate temperature statistics
-        if temperatures:
-            lowest_temp = min(temperatures)
-            highest_temp = max(temperatures)
-            average_temp = sum(temperatures) / len(temperatures)
-        else:
-            lowest_temp = highest_temp = average_temp = None
-
-        # Log temperature statistics
-        print(f"Temperature during training - Lowest: {lowest_temp}, Highest: {highest_temp}, Average: {average_temp}")
 
         # Perform validation within each epoch after training
         model.eval()
@@ -298,7 +270,6 @@ class PCBenchmark:
             'training_time': round(training_time, 2),
             'total_time': round(total_time, 2),
             'f1_score': round(f1, 4),
-            'average_temperature': average_temp
         }
     
     def run_full_benchmark(self):
@@ -322,7 +293,6 @@ class PCBenchmark:
             'training_time': benchmark_results['training_time'],
             'total_time': benchmark_results['total_time'],
             'f1_score': benchmark_results['f1_score'],
-            'average_temperature': benchmark_results['average_temperature']
         }
         
         # Add CUDA information if available
