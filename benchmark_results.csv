@@ -1,2 +1,2 @@
 unique_id,os,cpu_model,cpu_cores,ram,gpu_model,cuda_version,cuda_cores,vram,pytorch_version,total_time,f1_score
-1880a7fdff3441cf0cce9cb1c3f8d3f1a6dc88bf43646f940d4a3959525d6cfb,Darwin 24.2.0,Apple M2 Pro,10 (10 threads),16.0 GB,M2 Pro,N.A.,N.A.,N.A.,2.5.1,407.22,0.7896
+1880a7fdff3441cf0cce9cb1c3f8d3f1a6dc88bf43646f940d4a3959525d6cfb,Darwin 24.2.0,Apple M2 Pro,10 (10 threads),16.0 GB,M2 Pro,N.A.,N.A.,N.A.,2.5.1,399.32,0.7896
