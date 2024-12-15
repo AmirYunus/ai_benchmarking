@@ -339,7 +339,7 @@ class PCBenchmark:
                 existing_record = existing_df[existing_df['unique_id'] == results['unique_id']].iloc[0]
                 if results['benchmark_score'] > existing_record['benchmark_score']:
                     existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]
-                    df = pd.concat([existing_df, df], ignore_index=True)
+                df = pd.concat([existing_df, df], ignore_index=True)
             else:
                 df = pd.concat([existing_df, df], ignore_index=True)
         
