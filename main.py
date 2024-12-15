@@ -282,6 +282,20 @@ class PCBenchmark:
         print(f"Running benchmark on {device}...")
         benchmark_results = self.run_benchmark(device)
         
+        # Get the minimum total time from all records (including current benchmark)
+        if os.path.exists(self.results_file):
+            existing_df = pd.read_csv(self.results_file)
+            all_times = existing_df['total_time'].tolist() + [benchmark_results['total_time']]
+            alpha = min(all_times)
+        else:
+            alpha = benchmark_results['total_time']
+            
+        # Calculate benchmark score for current result
+        benchmark_score = round((alpha / benchmark_results['total_time']) * benchmark_results['f1_score'], 4)
+        
+        # Remove the premature update and save of existing records
+        # The benchmark scores will be updated in save_results instead
+        
         results = {
             'timestamp': datetime.now().strftime('%Y-%m-%d'),
             'os': f"{platform.system()} {platform.release()}",
@@ -293,6 +307,7 @@ class PCBenchmark:
             'training_time': benchmark_results['training_time'],
             'total_time': benchmark_results['total_time'],
             'f1_score': benchmark_results['f1_score'],
+            'benchmark_score': benchmark_score,
         }
         
         # Add CUDA information if available
@@ -314,32 +329,35 @@ class PCBenchmark:
 
     def save_results(self, results):
         """Save benchmark results to CSV file"""
-        results['unique_id'] = self._generate_unique_id(results)  # Generate unique ID
+        results['unique_id'] = self._generate_unique_id(results)
         
         df = pd.DataFrame([results])
         
         if os.path.exists(self.results_file):
             existing_df = pd.read_csv(self.results_file)
-            # Check for existing record with the same unique ID
             if results['unique_id'] in existing_df['unique_id'].values:
                 existing_record = existing_df[existing_df['unique_id'] == results['unique_id']].iloc[0]
-                # Compare F1 scores and keep the better result
-                if results['f1_score'] > existing_record['f1_score']:
-                    existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]  # Remove the old record
-                    df = pd.concat([existing_df, df], ignore_index=True)  # Add the new record
-                else:
-                    return existing_df  # Return existing record if it's better
+                if results['benchmark_score'] > existing_record['benchmark_score']:
+                    existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]
+                    df = pd.concat([existing_df, df], ignore_index=True)
             else:
                 df = pd.concat([existing_df, df], ignore_index=True)
         
-        # Sort by F1 score (higher is better) and total time (lower is better)
-        df = df.sort_values(['f1_score', 'total_time'], ascending=[False, True])
+        # Calculate alpha (minimum total time) from the combined dataset
+        alpha = df['total_time'].min()
         
-        # Reorder columns for better readability
+        # Update all benchmark scores using the final alpha value
+        df['benchmark_score'] = round((alpha / df['total_time']) * df['f1_score'], 4)
+        
+        # Convert benchmark_score to numeric and sort
+        df['benchmark_score'] = df['benchmark_score'].astype(float)
+        df = df.sort_values(by='benchmark_score', ascending=False, ignore_index=True)
+        
+        # Reorder columns
         columns = [
             'unique_id', 'os', 'cpu_model', 'cpu_cores', 'ram',
             'gpu_model', 'cuda_version', 'cuda_cores', 'vram',
-            'pytorch_version', 'total_time', 'f1_score'
+            'pytorch_version', 'total_time', 'f1_score', 'benchmark_score'
         ]
         df = df[columns]
         
