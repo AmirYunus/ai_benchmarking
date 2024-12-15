@@ -336,12 +336,8 @@ class PCBenchmark:
         if os.path.exists(self.results_file):
             existing_df = pd.read_csv(self.results_file)
             if results['unique_id'] in existing_df['unique_id'].values:
-                existing_record = existing_df[existing_df['unique_id'] == results['unique_id']].iloc[0]
-                if results['benchmark_score'] > existing_record['benchmark_score']:
-                    existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]
-                df = pd.concat([existing_df, df], ignore_index=True)
-            else:
-                df = pd.concat([existing_df, df], ignore_index=True)
+                existing_df = existing_df[existing_df['unique_id'] != results['unique_id']]
+            df = pd.concat([existing_df, df], ignore_index=True)
         
         # Calculate alpha (minimum total time) from the combined dataset
         alpha = df['total_time'].min()
