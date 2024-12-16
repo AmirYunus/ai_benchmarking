@@ -1,4 +1,5 @@
 unique_id,os,cpu_model,cpu_cores,ram,gpu_model,cuda_version,cuda_cores,vram,pytorch_version,total_time,f1_score,benchmark_score
-8f90f87ef6371bdb68f76fc74db5f9228ac4de89122c996d3a00eff46b0c5c35,Windows 10,AMD Ryzen 7 5800H with Radeon Graphics,8 (16 threads),31.86 GB,NVIDIA GeForce RTX 3070 Laptop GPU,12.4,8,8.0,2.5.1+cu124,198.04,0.7895,0.7895
-1880a7fdff3441cf0cce9cb1c3f8d3f1a6dc88bf43646f940d4a3959525d6cfb,Darwin 24.2.0,Apple M2 Pro,10 (10 threads),16.0 GB,M2 Pro,N.A.,N.A.,N.A.,2.5.1,397.97,0.7896,0.3929
-f81893a364df8d610fa186ed6cacaee348fd896e32f197950f1dd05f16f06309,Darwin 24.2.0,Apple M3 Pro,11 (11 threads),36.0 GB,M3 Pro,N.A.,N.A.,N.A.,2.5.1,411.66,0.7961,0.383
+1f80a7f3349e159a960f8b3a79b9fa6c274a58aaabe2c1934373374b2024c87c,Windows 10,AMD Ryzen 7 7700X 8-Core Processor,8 (16 threads),31.21 GB,NVIDIA GeForce RTX 4070 Ti SUPER,12.4,8,15.99,2.5.1+cu124,96.57,0.7906,0.7906
+8f90f87ef6371bdb68f76fc74db5f9228ac4de89122c996d3a00eff46b0c5c35,Windows 10,AMD Ryzen 7 5800H with Radeon Graphics,8 (16 threads),31.86 GB,NVIDIA GeForce RTX 3070 Laptop GPU,12.4,8,8.0,2.5.1+cu124,198.04,0.7895,0.385
+1880a7fdff3441cf0cce9cb1c3f8d3f1a6dc88bf43646f940d4a3959525d6cfb,Darwin 24.2.0,Apple M2 Pro,10 (10 threads),16.0 GB,M2 Pro,N.A.,N.A.,N.A.,2.5.1,397.97,0.7896,0.1916
+f81893a364df8d610fa186ed6cacaee348fd896e32f197950f1dd05f16f06309,Darwin 24.2.0,Apple M3 Pro,11 (11 threads),36.0 GB,M3 Pro,N.A.,N.A.,N.A.,2.5.1,411.66,0.7961,0.1868
