@@ -1,0 +1,12 @@
+psutil==6.1.0
+numpy<2
+pandas==2.2.3
+py-cpuinfo==9.0.0
+pynvml==12.0.0
+scikit-learn==1.5.2
+tqdm==4.67.1
+
+# Install PyTorch and related libraries only if the system is macOS
+torch platform_system == "Darwin"
+torchvision; platform_system == "Darwin"
+torchaudio; platform_system == "Darwin"
