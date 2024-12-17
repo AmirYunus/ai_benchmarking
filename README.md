@@ -15,6 +15,7 @@ This Python script is designed for benchmarking a VGG16 neural network model usi
 | 2024-12-05  | Windows 10       | AMD Ryzen 7 5800H | 8 (16 threads) | 31.86 GB | RTX 3070 Laptop | 12.4 | 8 | 8.0 GB | 2.5.1+cu124 | 198.04 | 0.7895 |
 | 2024-12-05  | Darwin 24.2.0    | Apple M2 Pro   | 10 (10 threads) | 16.0 GB  | M2 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 397.97 | 0.7896 |
 | 2024-12-05  | Darwin 24.2.0    | Apple M3 Pro   | 11 (11 threads) | 36.0 GB  | M3 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 411.66 | 0.7961 |
+| 2024-12-05  | Darwin 24.2.0    | Intel(R) Core(TM) i7-8569U | 4 (8 threads) | 16.0 GB | None | N.A. | N.A. | N.A. | 2.2.2 | 5137.11 | 0.7918 | 0.0149 |
 
 ### Results Analysis
 
@@ -40,6 +41,14 @@ The small variation in F1 scores across all devices (ranging from 0.7895 to 0.79
 ```bash
 conda -V
 ```
+> **Note:**
+> 
+> If you have conda version lower than 24.0.0, you can upgrade it by running:
+> ```bash
+> conda activate base
+> conda update --all
+> conda update conda
+> ```
 
 2. Create a new conda environment with Python 3.11 and install the required packages.
 
@@ -49,6 +58,14 @@ conda activate ./venv
 python -m pip cache purge # if there are issues with installation or if you upgraded your conda version to 24.0.0 or higher
 python -m pip install --force-reinstall -r requirements.txt
 ```
+
+> **Note:**
+> 
+> There were issues with installing PyTorch and running the script on the Intel(R) Core(TM) i7-8569U on MacOS. If you faced something similar, you may try to use the following requirements file instead:
+> 
+> ```bash
+> python -m pip install --force-reinstall -r requirements_bk.txt
+> ```
 
 ### Additional Requirements
 For Windows:
