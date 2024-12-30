@@ -9,21 +9,42 @@ This Python script is designed for benchmarking a VGG16 neural network model usi
 
 ## Current Leaderboard
 
-| Timestamp   | OS                | CPU Model      | CPU Cores       | RAM      | GPU Model | CUDA Version | CUDA Cores | VRAM | PyTorch Version | Total Time | F1 Score |
-|-------------|-------------------|----------------|------------------|----------|-----------|--------------|------------|------|------------------|------------|----------|
-| 2024-12-05  | Windows 10       | AMD Ryzen 7 7700X | 8 (16 threads) | 31.21 GB | RTX 4070 Ti SUPER | 12.4 | 8 | 15.99 GB | 2.5.1+cu124 | 96.57 | 0.7906 |
-| 2024-12-05  | Windows 10       | AMD Ryzen 7 5800H | 8 (16 threads) | 31.86 GB | RTX 3070 Laptop | 12.4 | 8 | 8.0 GB | 2.5.1+cu124 | 198.04 | 0.7895 |
-| 2024-12-05  | Darwin 24.2.0    | Apple M2 Pro   | 10 (10 threads) | 16.0 GB  | M2 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 397.97 | 0.7896 |
-| 2024-12-05  | Darwin 24.2.0    | Apple M3 Pro   | 11 (11 threads) | 36.0 GB  | M3 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 411.66 | 0.7961 |
-| 2024-12-05  | Darwin 24.2.0    | Intel(R) Core(TM) i7-8569U | 4 (8 threads) | 16.0 GB | None | N.A. | N.A. | N.A. | 2.2.2 | 5137.11 | 0.7918 | 0.0149 |
+| OS                | CPU Model      | CPU Cores       | RAM      | GPU Model | CUDA Version | CUDA Cores | VRAM | PyTorch Version | Total Time | F1 Score | Benchmark Score |
+|-------------------|----------------|------------------|----------|-----------|--------------|------------|------|------------------|------------|----------|------------------|
+| Linux 6.8.0-49-generic | AMD Ryzen 7 7700X 8-Core Processor | 8 (16 threads) | 30.56 GB | NVIDIA GeForce RTX 4070 Ti SUPER | 12.4 | 8 | 15.7 | 2.5.1+cu124 | 54.64 | 0.7906 | 0.7906 |
+| Windows 10       | AMD Ryzen 7 7700X 8-Core Processor | 8 (16 threads) | 31.21 GB | NVIDIA GeForce RTX 4070 Ti SUPER | 12.4 | 8 | 15.99 | 2.5.1+cu124 | 96.57 | 0.7906 | 0.4473 |
+| Windows 10       | AMD Ryzen 7 5800H with Radeon Graphics | 8 (16 threads) | 31.86 GB | NVIDIA GeForce RTX 3070 Laptop GPU | 12.4 | 8 | 8.0 | 2.5.1+cu124 | 198.04 | 0.7895 | 0.2178 |
+| Darwin 24.2.0    | Apple M2 Pro   | 10 (10 threads) | 16.0 GB  | M2 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 397.97 | 0.7896 | 0.1084 |
+| Darwin 24.2.0    | Apple M3 Pro   | 11 (11 threads) | 36.0 GB  | M3 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 411.66 | 0.7961 | 0.1057 |
+| Darwin 24.2.0    | Intel(R) Core(TM) i7-8569U CPU @ 2.80GHz | 4 (8 threads) | 16.0 GB | None | N.A. | N.A. | N.A. | 2.2.2 | 5137.11 | 0.7918 | 0.0084 |
 
 ### Results Analysis
 
-The benchmark results reveal significant performance variations across different hardware configurations. The NVIDIA RTX 4070 Ti SUPER emerges as the clear leader, completing the training in just 96.57 seconds - approximately half the time of the RTX 3070 Laptop GPU (198.04s) and about a quarter of the time taken by the Apple Silicon variants (397.97s and 411.66s).
+The benchmark results reveal significant performance variations across different hardware configurations. The NVIDIA RTX 4070 Ti SUPER emerges as the clear leader, completing the training in just 54.64 seconds on Linux 6.8.0-49-generic. This performance is approximately half the time of the RTX 3070 Laptop GPU, which took 198.04 seconds, and about a quarter of the time taken by the Apple Silicon variants, which ranged from 397.97 seconds for the M2 Pro to 411.66 seconds for the M3 Pro.
 
-The RTX 3070 Laptop GPU maintains strong performance, significantly outpacing both Apple Silicon variants. Between the Apple Silicon chips, the M2 Pro slightly edges out the M3 Pro in terms of training time (397.97s vs 411.66s), despite the M3 Pro having more cores and RAM. However, the M3 Pro achieves a marginally higher F1 score (0.7961 vs 0.7896).
+#### Key Observations:
 
-The small variation in F1 scores across all devices (ranging from 0.7895 to 0.7961) suggests that the model's performance is relatively consistent across different hardware configurations, with the main differentiator being training speed. The superior performance of the NVIDIA GPUs can be attributed to their dedicated CUDA cores and VRAM, which are specifically optimized for deep learning workloads. This demonstrates the continued advantage of dedicated GPUs for neural network training tasks, even when compared to Apple's latest integrated solutions.
+1. **NVIDIA GPUs vs. Apple Silicon**:
+   - The NVIDIA RTX 4070 Ti SUPER demonstrates a substantial advantage in training speed, attributed to its dedicated CUDA cores and VRAM, which are optimized for deep learning tasks. This highlights the continued superiority of dedicated GPUs over integrated solutions, particularly for computationally intensive workloads like neural network training.
+   - The RTX 3070 Laptop GPU, while slower than the 4070 Ti, still outperforms both Apple Silicon variants, indicating that NVIDIA's architecture is more efficient for this type of task.
+
+2. **Comparison of RTX 4070 Ti SUPER on Different OS**:
+   - The performance of the RTX 4070 Ti SUPER varies slightly between operating systems. On **Linux 6.8.0-49-generic**, it completed the training in **54.64 seconds**, while on **Windows 10**, the same GPU took **96.57 seconds**. This indicates that the Linux environment may provide better optimization for deep learning tasks, likely due to more efficient resource management and lower overhead compared to Windows.
+   - The difference in training times suggests that users running deep learning workloads on NVIDIA GPUs may benefit from using Linux, especially for large-scale projects where training time is critical.
+
+3. **Apple Silicon Performance**:
+   - Among the Apple Silicon chips, the M2 Pro slightly edges out the M3 Pro in terms of training time (397.97 seconds vs. 411.66 seconds). This is intriguing given that the M3 Pro has more cores and RAM, suggesting that architectural differences or optimizations in the M2 Pro may play a role in its performance.
+   - Despite the M3 Pro's longer training time, it achieves a marginally higher F1 score (0.7961 vs. 0.7896), indicating that while it may take longer to train, it could potentially yield better model performance in terms of classification accuracy.
+
+4. **Consistency in F1 Scores**:
+   - The small variation in F1 scores across all devices (ranging from 0.7895 to 0.7961) suggests that the model's performance is relatively consistent across different hardware configurations. This indicates that while training speed varies significantly, the underlying model architecture and training process are robust enough to deliver similar performance metrics regardless of the hardware used.
+   - The F1 score is a critical metric for evaluating model performance, especially in classification tasks, as it considers both precision and recall. The consistency in these scores across diverse hardware suggests that users can expect reliable performance from the VGG16 model, regardless of whether they are using high-end NVIDIA GPUs or Apple Silicon.
+
+5. **Implications for Users**:
+   - For users prioritizing training speed, investing in high-performance NVIDIA GPUs is advisable, especially for large-scale deep learning tasks. The results clearly demonstrate the advantages of dedicated hardware in reducing training times.
+   - Conversely, users with Apple Silicon may still achieve satisfactory results, particularly for smaller datasets or less time-sensitive applications. The trade-off between training time and model performance should be considered based on the specific use case.
+
+Overall, these results underscore the importance of hardware selection in deep learning tasks and provide valuable insights for users looking to optimize their benchmarking and training processes.
 
 ## Features
 
@@ -120,3 +141,25 @@ The results are automatically sorted to create a leaderboard based on F1 score a
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Disclaimer
+
+The AI benchmarking results presented in this document are based solely on tests conducted for Computer Vision use cases, specifically using the VGG16 neural network model on the CIFAR-10 dataset. While these benchmarks provide valuable insights into the performance of various hardware configurations for this specific application, users should be aware that results may vary significantly for other types of tasks.
+
+Future benchmarks and leaderboard updates may consider additional use cases, including Natural Language Processing (NLP) and other Machine Learning (ML) applications. As the benchmarking framework evolves, we aim to provide a more comprehensive overview of hardware performance across a wider range of AI tasks.
+
+## Citations
+
+If you use this AI benchmarking framework or the results presented in this document in your research or projects, please consider citing it as follows:
+
+```
+@misc{ai_benchmark,
+  author = {Amir Yunus},
+  title = {AI Benchmarking Script for VGG16 on CIFAR-10},
+  year = {2024},
+  url = {https://github.com/AmirYunus/ai-benchmark},
+  note = {Accessed: YYYY-MM-DD}
+}
+```
+
+Replace "YYYY-MM-DD" with the date you accessed the repository. This helps us track the usage of the benchmark and contributes to the academic community.
