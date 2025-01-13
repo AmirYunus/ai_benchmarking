@@ -12,6 +12,7 @@ This Python script is designed for benchmarking a VGG16 neural network model usi
 | OS                | CPU Model      | CPU Cores       | RAM      | GPU Model | CUDA Version | CUDA Cores | VRAM | PyTorch Version | Total Time | F1 Score | Benchmark Score |
 |-------------------|----------------|------------------|----------|-----------|--------------|------------|------|------------------|------------|----------|------------------|
 | Linux 6.8.0-49-generic | AMD Ryzen 7 7700X 8-Core Processor | 8 (16 threads) | 30.56 GB | NVIDIA GeForce RTX 4070 Ti SUPER | 12.4 | 8 | 15.7 | 2.5.1+cu124 | 54.64 | 0.7906 | 0.7906 |
+| Windows 10       | Intel(R) Core(TM) i7-14700KF | 20 (28 threads) | 31.84 GB | NVIDIA GeForce RTX 4090 | 12.4 | 8 | 23.99 | 2.5.1+cu124 | 78.75 | 0.7897 | 0.5479 |
 | Windows 10       | AMD Ryzen 7 7700X 8-Core Processor | 8 (16 threads) | 31.21 GB | NVIDIA GeForce RTX 4070 Ti SUPER | 12.4 | 8 | 15.99 | 2.5.1+cu124 | 96.57 | 0.7906 | 0.4473 |
 | Windows 10       | AMD Ryzen 7 5800H with Radeon Graphics | 8 (16 threads) | 31.86 GB | NVIDIA GeForce RTX 3070 Laptop GPU | 12.4 | 8 | 8.0 | 2.5.1+cu124 | 198.04 | 0.7895 | 0.2178 |
 | Darwin 24.2.0    | Apple M2 Pro   | 10 (10 threads) | 16.0 GB  | M2 Pro    | N.A.         | N.A.       | N.A. | 2.5.1 | 397.97 | 0.7896 | 0.1084 |
@@ -20,31 +21,49 @@ This Python script is designed for benchmarking a VGG16 neural network model usi
 
 ### Results Analysis
 
-The benchmark results reveal significant performance variations across different hardware configurations. The NVIDIA RTX 4070 Ti SUPER emerges as the clear leader, completing the training in just 54.64 seconds on Linux 6.8.0-49-generic. This performance is approximately half the time of the RTX 3070 Laptop GPU, which took 198.04 seconds, and about a quarter of the time taken by the Apple Silicon variants, which ranged from 397.97 seconds for the M2 Pro to 411.66 seconds for the M3 Pro.
+The benchmark results reveal significant performance variations across different hardware configurations. The NVIDIA RTX 4070 Ti SUPER on Linux emerges as the leader in benchmark score, while the RTX 4090 on Windows demonstrates impressive raw performance despite system overhead. Training times range from 54.64 seconds for the fastest setup to over 5,000 seconds for CPU-only processing.
 
 #### Key Observations:
 
-1. **NVIDIA GPUs vs. Apple Silicon**:
-   - The NVIDIA RTX 4070 Ti SUPER demonstrates a substantial advantage in training speed, attributed to its dedicated CUDA cores and VRAM, which are optimized for deep learning tasks. This highlights the continued superiority of dedicated GPUs over integrated solutions, particularly for computationally intensive workloads like neural network training.
-   - The RTX 3070 Laptop GPU, while slower than the 4070 Ti, still outperforms both Apple Silicon variants, indicating that NVIDIA's architecture is more efficient for this type of task.
+1. **High-End NVIDIA GPUs Performance**:
+   - The NVIDIA RTX 4070 Ti SUPER on Linux achieves the highest benchmark score, completing training in just 54.64 seconds with an F1 score of 0.7906.
+   - The RTX 4090, despite having superior specifications (23.99GB VRAM vs 15.7GB), completed training in 78.75 seconds. This slightly longer time might be attributed to running on Windows rather than Linux, as we see similar OS-based performance differences with other hardware.
+   - Both cards demonstrate exceptional performance for deep learning tasks, with the RTX 4090's higher VRAM capacity potentially offering advantages for larger models or batch sizes not tested in this benchmark.
 
-2. **Comparison of RTX 4070 Ti SUPER on Different OS**:
-   - The performance of the RTX 4070 Ti SUPER varies slightly between operating systems. On **Linux 6.8.0-49-generic**, it completed the training in **54.64 seconds**, while on **Windows 10**, the same GPU took **96.57 seconds**. This indicates that the Linux environment may provide better optimization for deep learning tasks, likely due to more efficient resource management and lower overhead compared to Windows.
-   - The difference in training times suggests that users running deep learning workloads on NVIDIA GPUs may benefit from using Linux, especially for large-scale projects where training time is critical.
+2. **Operating System Impact**:
+   - The RTX 4070 Ti SUPER shows a stark performance difference between operating systems: 54.64 seconds on Linux versus 96.57 seconds on Windows, despite identical hardware.
+   - This nearly 2x performance gap suggests that Linux environments may offer significant advantages for deep learning workloads, possibly due to better driver optimization and lower system overhead.
+   - The pattern indicates that users might achieve substantial performance gains by switching to Linux, particularly for production environments.
 
-3. **Apple Silicon Performance**:
-   - Among the Apple Silicon chips, the M2 Pro slightly edges out the M3 Pro in terms of training time (397.97 seconds vs. 411.66 seconds). This is intriguing given that the M3 Pro has more cores and RAM, suggesting that architectural differences or optimizations in the M2 Pro may play a role in its performance.
-   - Despite the M3 Pro's longer training time, it achieves a marginally higher F1 score (0.7961 vs. 0.7896), indicating that while it may take longer to train, it could potentially yield better model performance in terms of classification accuracy.
+3. **Mobile vs Desktop GPU Performance**:
+   - The RTX 3070 Laptop GPU, while still powerful, shows the performance gap between mobile and desktop solutions, requiring 198.04 seconds for training.
+   - Despite being a mobile variant, it still outperforms both Apple Silicon chips, highlighting the advantages of dedicated GPU architecture for deep learning tasks.
 
-4. **Consistency in F1 Scores**:
-   - The small variation in F1 scores across all devices (ranging from 0.7895 to 0.7961) suggests that the model's performance is relatively consistent across different hardware configurations. This indicates that while training speed varies significantly, the underlying model architecture and training process are robust enough to deliver similar performance metrics regardless of the hardware used.
-   - The F1 score is a critical metric for evaluating model performance, especially in classification tasks, as it considers both precision and recall. The consistency in these scores across diverse hardware suggests that users can expect reliable performance from the VGG16 model, regardless of whether they are using high-end NVIDIA GPUs or Apple Silicon.
+4. **Apple Silicon Performance**:
+   - The M2 Pro slightly outperforms the M3 Pro in training time (397.97 vs 411.66 seconds), despite the M3 Pro having more cores and RAM.
+   - Interestingly, the M3 Pro achieves the highest F1 score (0.7961) among all tested configurations, suggesting potential benefits in model accuracy despite longer training times.
+   - Both chips demonstrate competitive performance for their integrated architecture, though they lag behind dedicated GPUs in raw training speed.
 
-5. **Implications for Users**:
-   - For users prioritizing training speed, investing in high-performance NVIDIA GPUs is advisable, especially for large-scale deep learning tasks. The results clearly demonstrate the advantages of dedicated hardware in reducing training times.
-   - Conversely, users with Apple Silicon may still achieve satisfactory results, particularly for smaller datasets or less time-sensitive applications. The trade-off between training time and model performance should be considered based on the specific use case.
+5. **F1 Score Consistency**:
+   - F1 scores remain remarkably consistent across all configurations (0.7895-0.7961), indicating that hardware choices primarily affect training speed rather than model quality.
+   - This consistency validates the robustness of the VGG16 architecture and training process across different hardware platforms.
 
-Overall, these results underscore the importance of hardware selection in deep learning tasks and provide valuable insights for users looking to optimize their benchmarking and training processes.
+6. **Performance Scaling**:
+   - The benchmark scores show clear tiers of performance:
+     * High-end NVIDIA GPUs on Linux (0.7906)
+     * High-end NVIDIA GPUs on Windows (0.5479-0.4473)
+     * Mobile NVIDIA GPUs (0.2178)
+     * Apple Silicon (0.1084-0.1057)
+     * CPU-only (0.0084)
+   - This scaling demonstrates the critical importance of hardware selection for deep learning workloads.
+
+7. **Implications for Users**:
+   - For maximum performance, a combination of high-end NVIDIA GPU and Linux OS appears optimal.
+   - The choice between RTX 4090 and 4070 Ti SUPER might depend more on other workload requirements (like VRAM needs) than raw training speed for this specific benchmark.
+   - Apple Silicon devices offer a balanced option for users prioritizing portability and integration over raw training speed.
+   - The significant performance gap between GPU and CPU-only training (54.64s vs 5137.11s) emphasizes the necessity of GPU acceleration for practical deep learning work.
+
+Overall, these results provide valuable insights for hardware selection in deep learning applications, highlighting the importance of both hardware choice and operating system in achieving optimal performance.
 
 ## Features
 
@@ -77,7 +96,7 @@ conda -V
 conda create --prefix=venv python=3.11 -y
 conda activate ./venv
 python -m pip cache purge # if there are issues with installation or if you upgraded your conda version to 24.0.0 or higher
-python -m pip install --force-reinstall -r requirements.txt
+python -m pip install --default-timeout=1000 --force-reinstall -r requirements.txt
 ```
 
 > **Note:**
